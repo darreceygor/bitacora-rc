@@ -1,6 +1,6 @@
 {
 	"name": "bitacora-rc",
-	"version": "1.2.1",
+	"version": "1.2.0",
 	"scripts": {
 		"dev": "esbuild main.ts --watch --format=cjs --outfile=main.js --bundle --external:obsidian",
 		"build": "esbuild main.ts --format=cjs --outfile=main.js --bundle --external:obsidian"

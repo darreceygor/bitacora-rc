@@ -238,7 +238,7 @@ var LoggerPlugin = class extends import_obsidian.Plugin {
           });
           cambios++;
         }
-        const m = /^QSO_(\d{8})_(\d{4})_(.+)$/.exec(file.basename);
+        const m = /^QSO_(\d{8})_(\d{4})_(?:[a-z0-9]+_)?(.+)$/i.exec(file.basename);
         if (!m || !fix.licencia)
           continue;
         const nuevo = this.licenciaArchivo(fix.licencia);
@@ -718,7 +718,8 @@ var LoggerPlugin = class extends import_obsidian.Plugin {
               omitidos++;
               continue;
             }
-            const filename = `QSO_${fecha}_${hora}_${this.licenciaArchivo(call)}.md`;
+            const banda = (qso.band ?? "").toString().trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+            const filename = `QSO_${fecha}_${hora}_${banda}_${this.licenciaArchivo(call)}.md`;
             const filepath = `${FOLDER_NAME}/${filename}`;
             if (this.app.vault.getAbstractFileByPath(filepath)) {
               omitidos++;
@@ -778,7 +779,7 @@ ${qso.comment ?? "Gracias por el contacto! 73!"}
     for (const line of lines) {
       buffer += line + "\n";
       if (inHeader) {
-        if (buffer.includes("<eoh>")) {
+        if (buffer.toLowerCase().includes("<eoh>")) {
           inHeader = false;
           buffer = "";
         }
@@ -793,7 +794,7 @@ ${qso.comment ?? "Gracias por el contacto! 73!"}
           currentRecord[name.toLowerCase()] = value.slice(0, len);
         }
       }
-      if (buffer.includes("<eor>")) {
+      if (buffer.toLowerCase().includes("<eor>")) {
         if (Object.keys(currentRecord).length > 0) {
           records.push(currentRecord);
         }
@@ -951,7 +952,7 @@ var LoggerView = class extends import_obsidian.ItemView {
       const prop = selectProp.value;
       const rst = inputRst.value.trim();
       const comentario = this.plugin.normalizarNombre(inputCom.value);
-      const filename = `QSO_${fecha.replace(/-/g, "")}_${hora.replace(":", "")}_${this.plugin.licenciaArchivo(call)}.md`;
+      const filename = `QSO_${fecha.replace(/-/g, "")}_${hora.replace(":", "")}_${banda.toLowerCase().replace(/[^a-z0-9]/g, "")}_${this.plugin.licenciaArchivo(call)}.md`;
       const filepath = `${FOLDER_NAME}/${filename}`;
       if (this.app.vault.getAbstractFileByPath(filepath)) {
         new import_obsidian.Notice(`Ya existe un QSO con ${call} en ${fecha} ${hora}`);
