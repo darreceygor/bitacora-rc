@@ -19,6 +19,7 @@ export interface BitacoraSettings {
 	ituZone: string;
 	cqZone: string;
 	grid: string;
+	autoGenerarQSL: boolean;
 }
 
 const DEFAULT_SETTINGS: BitacoraSettings = {
@@ -27,6 +28,7 @@ const DEFAULT_SETTINGS: BitacoraSettings = {
 	ituZone: "",
 	cqZone: "",
 	grid: "",
+	autoGenerarQSL: true,
 };
 
 export interface FilaQSO {
@@ -781,6 +783,129 @@ export default class LoggerPlugin extends Plugin {
 		}
 	}
 
+	async importarADIF() {
+		return new Promise<void>((resolve) => {
+			const input = document.createElement("input");
+			input.type = "file";
+			input.accept = ".adi,.adif";
+			input.addEventListener("change", async (e) => {
+				const file = (e.target as HTMLInputElement).files?.[0];
+				if (!file) {
+					resolve();
+					return;
+				}
+				try {
+					const text = await file.text();
+					const qsos = this.parseADIF(text);
+					if (qsos.length === 0) {
+						new Notice("No se encontraron QSOs válidos en el archivo ADIF");
+						resolve();
+						return;
+					}
+					await this.ensureFolder(FOLDER_NAME);
+					let creados = 0;
+					let omitidos = 0;
+					for (const qso of qsos) {
+						const call = this.normalizarLicencia(qso.call);
+						if (!call) {
+							omitidos++;
+							continue;
+						}
+						const fecha = qso.qso_date ?? "";
+						const hora = qso.time_on ?? "";
+						if (!fecha || !hora) {
+							omitidos++;
+							continue;
+						}
+						const filename = `QSO_${fecha}_${hora}_${this.licenciaArchivo(call)}.md`;
+						const filepath = `${FOLDER_NAME}/${filename}`;
+						if (this.app.vault.getAbstractFileByPath(filepath)) {
+							omitidos++;
+							continue;
+						}
+						const content = `---
+emisor: ${qso.station_callsign ?? this.licencia()}
+corresponsal: ${call}
+nombre: ${qso.name ?? ""}
+fecha: ${fecha.slice(0, 4)}-${fecha.slice(4, 6)}-${fecha.slice(6, 8)}
+hora_utc: ${hora.slice(0, 2)}:${hora.slice(2, 4)}
+banda: ${qso.band ?? ""}
+modo: ${qso.mode ?? ""}
+propagacion: ${qso.prop_mode === "SAT" ? "SAT" : "---"}
+rst: ${qso.rst_sent ?? qso.rst_rcvd ?? ""}
+operador: ${qso.operator ?? qso.my_name ?? this.settings.operador}
+itu_zone: ${qso.my_itu_zone ?? this.settings.ituZone}
+cq_zone: ${qso.my_cq_zone ?? this.settings.cqZone}
+grid: ${qso.my_gridsquare ?? this.settings.grid}
+url: ""
+comentario: ${qso.comment ?? "Gracias por el contacto! 73!"}
+---
+${qso.comment ?? "Gracias por el contacto! 73!"}
+`;
+						try {
+							await this.app.vault.create(filepath, content);
+							creados++;
+						} catch {
+							omitidos++;
+						}
+					}
+					new Notice(`Importación ADIF: ${creados} QSOs creados, ${omitidos} omitidos (duplicados o inválidos)`);
+					// Refrescar vista si está abierta
+					for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_LOGGER)) {
+						const view = leaf.view;
+						if (view instanceof LoggerView) void view.onOpen();
+					}
+					for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_TABLA)) {
+						const view = leaf.view;
+						if (view instanceof QsoTableView) void view.render();
+					}
+				} catch (err) {
+					new Notice("Error al importar ADIF: " + (err instanceof Error ? err.message : String(err)));
+				}
+				resolve();
+			});
+			input.click();
+		});
+	}
+
+	parseADIF(text: string): Record<string, string>[] {
+		const records: Record<string, string>[] = [];
+		const lines = text.split(/\r?\n/);
+		let inHeader = true;
+		let currentRecord: Record<string, string> = {};
+		let buffer = "";
+
+		for (const line of lines) {
+			buffer += line + "\n";
+			if (inHeader) {
+				if (buffer.includes("<eoh>")) {
+					inHeader = false;
+					buffer = "";
+				}
+				continue;
+			}
+
+			const fieldRegex = /<(\w+):(\d+)>([^<]*)/g;
+			let match;
+			while ((match = fieldRegex.exec(buffer)) !== null) {
+				const [, name, lenStr, value] = match;
+				const len = parseInt(lenStr, 10);
+				if (value.length >= len) {
+					currentRecord[name.toLowerCase()] = value.slice(0, len);
+				}
+			}
+
+			if (buffer.includes("<eor>")) {
+				if (Object.keys(currentRecord).length > 0) {
+					records.push(currentRecord);
+				}
+				currentRecord = {};
+				buffer = "";
+			}
+		}
+		return records;
+	}
+
 	async activateView() {
 		const { workspace } = this.app;
 		const existing = workspace.getLeavesOfType(VIEW_TYPE_LOGGER);
@@ -908,17 +1033,29 @@ class LoggerView extends ItemView {
 		});
 		inputCom.rows = 3;
 
-		// Fila de botones: Guardar + Exportar en la misma línea
-		const rowActions = formDiv.createDiv({ cls: "logger-actions" });
+		// Fila 1: Guardar QSO + Tabla
+		const rowActions1 = formDiv.createDiv({ cls: "logger-actions" });
 
 		// Botón Guardar
-		const btnSave = rowActions.createEl("button", {
+		const btnSave = rowActions1.createEl("button", {
 			text: "💾 Guardar QSO",
 			cls: "logger-save mod-cta",
 		});
 
+		// Botón Tabla de QSOs
+		const btnTabla = rowActions1.createEl("button", {
+			text: "📋 Tabla",
+			cls: "logger-export",
+		});
+		btnTabla.addEventListener("click", () => {
+			void this.plugin.activateTableView();
+		});
+
+		// Fila 2: Exportar ADIF + Importar ADIF
+		const rowActions2 = formDiv.createDiv({ cls: "logger-actions" });
+
 		// Botón Exportar ADIF
-		const btnExport = rowActions.createEl("button", {
+		const btnExport = rowActions2.createEl("button", {
 			text: "📤 Exportar ADIF",
 			cls: "logger-export",
 		});
@@ -926,13 +1063,13 @@ class LoggerView extends ItemView {
 			void this.plugin.exportarADIF();
 		});
 
-		// Botón Tabla de QSOs
-		const btnTabla = rowActions.createEl("button", {
-			text: "📋 Tabla",
+		// Botón Importar ADIF
+		const btnImport = rowActions2.createEl("button", {
+			text: "📥 Importar ADIF",
 			cls: "logger-export",
 		});
-		btnTabla.addEventListener("click", () => {
-			void this.plugin.activateTableView();
+		btnImport.addEventListener("click", () => {
+			void this.plugin.importarADIF();
 		});
 
 		// Acción al hacer clic
@@ -1001,25 +1138,36 @@ ${comentario}
 				inputNombre.value = "";
 				inputRst.value = "";
 
-				// Generar la tarjeta QSL con los datos recién cargados
-				const created = this.app.vault.getAbstractFileByPath(filepath);
-				if (created instanceof TFile) {
-					await this.plugin.generarTarjetaQSL(created, {
-						emisor,
-						corresponsal: call,
-						nombre,
-						fecha,
-						hora_utc: hora,
-						banda,
-						modo,
-						propagacion: prop,
-						rst,
-						operador,
-						itu_zone: ituZone,
-						cq_zone: cqZone,
-						grid,
-						comentario,
-					});
+				// Generar la tarjeta QSL si está habilitado
+				if (this.plugin.settings.autoGenerarQSL) {
+					const created = this.app.vault.getAbstractFileByPath(filepath);
+					if (created instanceof TFile) {
+						const qslData = {
+							emisor,
+							corresponsal: call,
+							nombre,
+							fecha,
+							hora_utc: hora,
+							banda,
+							modo,
+							propagacion: prop,
+							rst,
+							operador,
+							itu_zone: ituZone,
+							cq_zone: cqZone,
+							grid,
+							comentario,
+						};
+						new QSLFondoModal(this.app, this.plugin, async (usarAleatorio: boolean) => {
+							if (usarAleatorio) {
+								await this.plugin.generarTarjetaQSL(created, qslData);
+							} else {
+								new FondoQSLModal(this.app, this.plugin, async (fondo) => {
+									await this.plugin.generarTarjetaQSL(created, qslData, fondo);
+								}).open();
+							}
+						}).open();
+					}
 				}
 			} catch (e) {
 				new Notice("Error al guardar: " + (e instanceof Error ? e.message : String(e)));
@@ -1315,6 +1463,18 @@ class BitacoraSettingsTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.grid)
 					.onChange(async (value) => {
 						this.plugin.settings.grid = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Generar QSL automáticamente al guardar")
+			.setDesc("Crea la tarjeta QSL en 'QSLs Enviadas' cada vez que guardás un QSO")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.autoGenerarQSL)
+					.onChange(async (value) => {
+						this.plugin.settings.autoGenerarQSL = value;
 						await this.plugin.saveSettings();
 					})
 			);

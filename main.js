@@ -46,7 +46,8 @@ var DEFAULT_SETTINGS = {
   operador: "",
   ituZone: "",
   cqZone: "",
-  grid: ""
+  grid: "",
+  autoGenerarQSL: true
 };
 var IMAGE_MIME_EXT = {
   "image/png": "png",
@@ -683,6 +684,125 @@ var LoggerPlugin = class extends import_obsidian.Plugin {
       new import_obsidian.Notice("Error al exportar ADIF: " + (e instanceof Error ? e.message : String(e)));
     }
   }
+  async importarADIF() {
+    return new Promise((resolve) => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".adi,.adif";
+      input.addEventListener("change", async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) {
+          resolve();
+          return;
+        }
+        try {
+          const text = await file.text();
+          const qsos = this.parseADIF(text);
+          if (qsos.length === 0) {
+            new import_obsidian.Notice("No se encontraron QSOs v\xE1lidos en el archivo ADIF");
+            resolve();
+            return;
+          }
+          await this.ensureFolder(FOLDER_NAME);
+          let creados = 0;
+          let omitidos = 0;
+          for (const qso of qsos) {
+            const call = this.normalizarLicencia(qso.call);
+            if (!call) {
+              omitidos++;
+              continue;
+            }
+            const fecha = qso.qso_date ?? "";
+            const hora = qso.time_on ?? "";
+            if (!fecha || !hora) {
+              omitidos++;
+              continue;
+            }
+            const filename = `QSO_${fecha}_${hora}_${this.licenciaArchivo(call)}.md`;
+            const filepath = `${FOLDER_NAME}/${filename}`;
+            if (this.app.vault.getAbstractFileByPath(filepath)) {
+              omitidos++;
+              continue;
+            }
+            const content = `---
+emisor: ${qso.station_callsign ?? this.licencia()}
+corresponsal: ${call}
+nombre: ${qso.name ?? ""}
+fecha: ${fecha.slice(0, 4)}-${fecha.slice(4, 6)}-${fecha.slice(6, 8)}
+hora_utc: ${hora.slice(0, 2)}:${hora.slice(2, 4)}
+banda: ${qso.band ?? ""}
+modo: ${qso.mode ?? ""}
+propagacion: ${qso.prop_mode === "SAT" ? "SAT" : "---"}
+rst: ${qso.rst_sent ?? qso.rst_rcvd ?? ""}
+operador: ${qso.operator ?? qso.my_name ?? this.settings.operador}
+itu_zone: ${qso.my_itu_zone ?? this.settings.ituZone}
+cq_zone: ${qso.my_cq_zone ?? this.settings.cqZone}
+grid: ${qso.my_gridsquare ?? this.settings.grid}
+url: ""
+comentario: ${qso.comment ?? "Gracias por el contacto! 73!"}
+---
+${qso.comment ?? "Gracias por el contacto! 73!"}
+`;
+            try {
+              await this.app.vault.create(filepath, content);
+              creados++;
+            } catch {
+              omitidos++;
+            }
+          }
+          new import_obsidian.Notice(`Importaci\xF3n ADIF: ${creados} QSOs creados, ${omitidos} omitidos (duplicados o inv\xE1lidos)`);
+          for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_LOGGER)) {
+            const view = leaf.view;
+            if (view instanceof LoggerView)
+              void view.onOpen();
+          }
+          for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_TABLA)) {
+            const view = leaf.view;
+            if (view instanceof QsoTableView)
+              void view.render();
+          }
+        } catch (err) {
+          new import_obsidian.Notice("Error al importar ADIF: " + (err instanceof Error ? err.message : String(err)));
+        }
+        resolve();
+      });
+      input.click();
+    });
+  }
+  parseADIF(text) {
+    const records = [];
+    const lines = text.split(/\r?\n/);
+    let inHeader = true;
+    let currentRecord = {};
+    let buffer = "";
+    for (const line of lines) {
+      buffer += line + "\n";
+      if (inHeader) {
+        if (buffer.includes("<eoh>")) {
+          inHeader = false;
+          buffer = "";
+        }
+        continue;
+      }
+      const fieldRegex = /<(\w+):(\d+)>([^<]*)/g;
+      let match;
+      while ((match = fieldRegex.exec(buffer)) !== null) {
+        const [, name, lenStr, value] = match;
+        const len = parseInt(lenStr, 10);
+        if (value.length >= len) {
+          currentRecord[name.toLowerCase()] = value.slice(0, len);
+        }
+      }
+      if (buffer.includes("<eor>")) {
+        if (Object.keys(currentRecord).length > 0) {
+          records.push(currentRecord);
+        }
+        currentRecord = {};
+        buffer = "";
+      }
+    }
+    return records;
+  }
   async activateView() {
     const { workspace } = this.app;
     const existing = workspace.getLeavesOfType(VIEW_TYPE_LOGGER);
@@ -777,24 +897,32 @@ var LoggerView = class extends import_obsidian.ItemView {
       cls: "logger-input"
     });
     inputCom.rows = 3;
-    const rowActions = formDiv.createDiv({ cls: "logger-actions" });
-    const btnSave = rowActions.createEl("button", {
+    const rowActions1 = formDiv.createDiv({ cls: "logger-actions" });
+    const btnSave = rowActions1.createEl("button", {
       text: "\u{1F4BE} Guardar QSO",
       cls: "logger-save mod-cta"
     });
-    const btnExport = rowActions.createEl("button", {
+    const btnTabla = rowActions1.createEl("button", {
+      text: "\u{1F4CB} Tabla",
+      cls: "logger-export"
+    });
+    btnTabla.addEventListener("click", () => {
+      void this.plugin.activateTableView();
+    });
+    const rowActions2 = formDiv.createDiv({ cls: "logger-actions" });
+    const btnExport = rowActions2.createEl("button", {
       text: "\u{1F4E4} Exportar ADIF",
       cls: "logger-export"
     });
     btnExport.addEventListener("click", () => {
       void this.plugin.exportarADIF();
     });
-    const btnTabla = rowActions.createEl("button", {
-      text: "\u{1F4CB} Tabla",
+    const btnImport = rowActions2.createEl("button", {
+      text: "\u{1F4E5} Importar ADIF",
       cls: "logger-export"
     });
-    btnTabla.addEventListener("click", () => {
-      void this.plugin.activateTableView();
+    btnImport.addEventListener("click", () => {
+      void this.plugin.importarADIF();
     });
     btnSave.addEventListener("click", async () => {
       const fix = this.plugin.corregirLicenciaYNombre(inputCall.value, inputNombre.value);
@@ -854,24 +982,35 @@ ${comentario}
         inputCall.value = "";
         inputNombre.value = "";
         inputRst.value = "";
-        const created = this.app.vault.getAbstractFileByPath(filepath);
-        if (created instanceof import_obsidian.TFile) {
-          await this.plugin.generarTarjetaQSL(created, {
-            emisor,
-            corresponsal: call,
-            nombre,
-            fecha,
-            hora_utc: hora,
-            banda,
-            modo,
-            propagacion: prop,
-            rst,
-            operador,
-            itu_zone: ituZone,
-            cq_zone: cqZone,
-            grid,
-            comentario
-          });
+        if (this.plugin.settings.autoGenerarQSL) {
+          const created = this.app.vault.getAbstractFileByPath(filepath);
+          if (created instanceof import_obsidian.TFile) {
+            const qslData = {
+              emisor,
+              corresponsal: call,
+              nombre,
+              fecha,
+              hora_utc: hora,
+              banda,
+              modo,
+              propagacion: prop,
+              rst,
+              operador,
+              itu_zone: ituZone,
+              cq_zone: cqZone,
+              grid,
+              comentario
+            };
+            new QSLFondoModal(this.app, this.plugin, async (usarAleatorio) => {
+              if (usarAleatorio) {
+                await this.plugin.generarTarjetaQSL(created, qslData);
+              } else {
+                new FondoQSLModal(this.app, this.plugin, async (fondo) => {
+                  await this.plugin.generarTarjetaQSL(created, qslData, fondo);
+                }).open();
+              }
+            }).open();
+          }
         }
       } catch (e) {
         new import_obsidian.Notice("Error al guardar: " + (e instanceof Error ? e.message : String(e)));
@@ -1078,6 +1217,12 @@ var BitacoraSettingsTab = class extends import_obsidian.PluginSettingTab {
     new import_obsidian.Setting(containerEl).setName("GRID Locator").setDesc("Tu locador Maidenhead (ej. GF05).").addText(
       (text) => text.setPlaceholder("GF05").setValue(this.plugin.settings.grid).onChange(async (value) => {
         this.plugin.settings.grid = value;
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian.Setting(containerEl).setName("Generar QSL autom\xE1ticamente al guardar").setDesc("Crea la tarjeta QSL en 'QSLs Enviadas' cada vez que guard\xE1s un QSO").addToggle(
+      (toggle) => toggle.setValue(this.plugin.settings.autoGenerarQSL).onChange(async (value) => {
+        this.plugin.settings.autoGenerarQSL = value;
         await this.plugin.saveSettings();
       })
     );
