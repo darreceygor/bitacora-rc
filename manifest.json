@@ -1,0 +1,9 @@
+{
+	"id": "bitacora_rc",
+	"name": "Bitácora de radioaficionado",
+	"version": "1.2.0",
+	"minAppVersion": "1.4.0",
+	"description": "Bitácora de radioaficionado: carga de QSOs, tarjetas QSL y exportación ADIF.",
+	"author": "LU9EFF",
+	"isDesktopOnly": false
+}

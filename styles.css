@@ -1,0 +1,295 @@
+.logger-title {
+	margin: 0 0 12px;
+	padding-bottom: 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	font-size: var(--font-ui-large);
+	font-weight: 600;
+	color: var(--text-normal);
+}
+
+.logger-form {
+	container-type: inline-size;
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 10px 12px;
+	padding: 14px;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+}
+
+.logger-field {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	min-width: 0;
+}
+
+.logger-field--full {
+	grid-column: 1 / -1;
+}
+
+.logger-label {
+	font-size: var(--font-ui-small);
+	font-weight: 600;
+	color: var(--text-muted);
+}
+
+.logger-input {
+	width: 100%;
+	padding: 6px 8px;
+	font-size: var(--font-ui-small);
+	color: var(--text-normal);
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	box-shadow: none;
+}
+
+.logger-input:focus {
+	border-color: var(--accent);
+	box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+	outline: none;
+}
+
+.logger-input::placeholder {
+	color: var(--text-faint);
+}
+
+.logger-input[readonly] {
+	background-color: var(--background-secondary);
+	color: var(--text-muted);
+	cursor: default;
+}
+
+textarea.logger-input {
+	resize: vertical;
+	line-height: 1.45;
+}
+
+select.logger-input {
+	cursor: pointer;
+}
+
+.logger-save.mod-cta,
+.logger-save.mod-cta:hover {
+	grid-column: 1 / -1;
+	margin-top: 4px;
+	min-height: var(--input-height, 34px);
+	background-color: var(--color-green);
+	border-color: var(--color-green);
+	color: var(--text-on-accent, #fff);
+	cursor: pointer;
+}
+
+.logger-save.mod-cta:hover {
+	filter: brightness(1.1);
+}
+
+.logger-actions {
+	grid-column: 1 / -1;
+	display: flex;
+	gap: var(--size-4-3, 12px);
+	margin-top: 4px;
+}
+
+.logger-actions .logger-save,
+.logger-actions .logger-export {
+	grid-column: auto;
+	flex: 1 1 0;
+	min-width: 0;
+	margin-top: 0;
+	width: auto;
+}
+
+.logger-export {
+	min-height: var(--input-height, 34px);
+	background-color: transparent;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	cursor: pointer;
+}
+
+.logger-export:hover {
+	background-color: var(--background-modifier-hover);
+	border-color: var(--accent);
+}
+
+@container (max-width: 340px) {
+	.logger-form {
+		grid-template-columns: 1fr;
+	}
+}
+
+@media (max-width: 480px) {
+	.logger-form {
+		grid-template-columns: 1fr;
+	}
+}
+
+/* === Tabla de QSOs === */
+
+.qso-tabla-barra {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-3, 12px);
+	margin-bottom: 10px;
+}
+
+.qso-tabla-contador {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+}
+
+.qso-tabla-wrap {
+	overflow: auto;
+	max-height: calc(100vh - 160px);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+}
+
+.qso-tabla {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: var(--font-ui-small);
+}
+
+.qso-tabla th,
+.qso-tabla td {
+	padding: 6px 8px;
+	text-align: left;
+	white-space: nowrap;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.qso-tabla thead th {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-weight: 600;
+}
+
+.qso-tabla tbody tr:nth-child(even) {
+	background: var(--background-secondary);
+}
+
+.qso-tabla-fila {
+	cursor: pointer;
+}
+
+.qso-tabla-fila:hover {
+	background: var(--background-modifier-hover) !important;
+}
+
+.qso-tabla .qsi {
+	color: var(--color-green);
+	text-align: center;
+	font-weight: 700;
+}
+
+.qso-tabla .qno {
+	color: var(--text-faint);
+	text-align: center;
+}
+
+.qso-tabla-vacio,
+.qso-tabla-pie {
+	margin: 8px 0 0;
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+}
+
+/* === Bloque QSL al pie de la nota QSO === */
+
+.qso-qsl-bloque {
+	margin-top: 28px;
+	padding-top: 4px;
+}
+
+.qso-qsl-generar {
+	min-height: var(--input-height, 34px);
+	padding: 0 14px;
+	background-color: var(--color-green);
+	border: 1px solid var(--color-green);
+	border-radius: var(--radius-s);
+	color: var(--text-on-accent, #fff);
+	font-size: var(--font-ui-small);
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.qso-qsl-generar:hover {
+	filter: brightness(1.1);
+}
+
+.qso-qsl-sep {
+	margin: 16px 0 12px;
+	border: none;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.qso-qsl-titulo {
+	font-size: var(--font-ui-medium);
+	font-weight: 700;
+	color: var(--text-normal);
+	margin-bottom: 4px;
+}
+
+.qso-qsl-subtitulo {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+}
+
+/* === Header Image === */
+
+.logger-header-image {
+	position: relative;
+	margin-bottom: 12px;
+	border-radius: var(--radius-m);
+	overflow: hidden;
+	cursor: pointer;
+}
+
+.logger-header-image:hover .logger-header-hint {
+	opacity: 1;
+}
+
+.logger-header-img {
+	display: block;
+	width: 100%;
+	height: auto;
+	max-height: 200px;
+	object-fit: cover;
+}
+
+.logger-header-image.logger-header--wide .logger-header-img {
+	width: 100%;
+	height: auto;
+	max-height: 180px;
+}
+
+.logger-header-image.logger-header--narrow .logger-header-img {
+	width: auto;
+	max-width: 100%;
+	max-height: 180px;
+	margin-left: auto;
+}
+
+.logger-header-hint {
+	position: absolute;
+	bottom: 8px;
+	right: 12px;
+	padding: 4px 10px;
+	background: rgba(0, 0, 0, 0.6);
+	color: #fff;
+	font-size: var(--font-ui-small);
+	border-radius: var(--radius-s);
+	opacity: 0;
+	transition: opacity 0.2s;
+	pointer-events: none;
+	white-space: nowrap;
+}
