@@ -121,6 +121,7 @@ var LoggerPlugin = class extends import_obsidian.Plugin {
       this.app.workspace.on("editor-paste", (evt, editor, info) => {
         if (evt.defaultPrevented)
           return;
+        evt.preventDefault();
         void this.onEditorPaste(evt, editor, info);
       })
     );
@@ -155,9 +156,7 @@ var LoggerPlugin = class extends import_obsidian.Plugin {
   }
   subirImagenEquipo() {
     return new Promise((resolve) => {
-      const input = document.createElement("input");
-      input.type = "file";
-      input.accept = "image/*";
+      const input = createEl("input", { attr: { type: "file", accept: "image/*" } });
       input.addEventListener("change", () => {
         void (async () => {
           const file = input.files?.[0];
@@ -676,9 +675,7 @@ var LoggerPlugin = class extends import_obsidian.Plugin {
       const body = rows.map((r) => r.line + "\n").join("");
       const blob = new Blob([header + body], { type: "text/plain;charset=utf-8" });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `QSOs_${this.licencia()}_${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "")}.adi`;
+      const a = createEl("a", { attr: { href: url, download: `QSOs_${this.licencia()}_${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "")}.adi` } });
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -689,9 +686,7 @@ var LoggerPlugin = class extends import_obsidian.Plugin {
     }
   }
   importarADIF() {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".adi,.adif";
+    const input = createEl("input", { attr: { type: "file", accept: ".adi,.adif" } });
     input.addEventListener("change", (e) => {
       void (async () => {
         const file = e.target.files?.[0];
@@ -1197,6 +1192,63 @@ var BitacoraSettingsTab = class extends import_obsidian.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
+  }
+  getSettingDefinitions() {
+    return [
+      {
+        control: {
+          type: "text",
+          key: "licencia",
+          placeholder: "LU9EFF"
+        },
+        name: "Licencia",
+        desc: "Distintiva propia. Se usa en el t\xEDtulo, en el ADIF y en la primera fila del formulario."
+      },
+      {
+        control: {
+          type: "text",
+          key: "operador",
+          placeholder: "Nombre y apellido"
+        },
+        name: "Nombre de operador",
+        desc: "Tu nombre. Se guarda en cada QSO y se exporta como my_name en el ADIF."
+      },
+      {
+        control: {
+          type: "text",
+          key: "ituZone",
+          placeholder: "13"
+        },
+        name: "ITU Zone",
+        desc: "Zona ITU de tu estaci\xF3n (ej. 13)."
+      },
+      {
+        control: {
+          type: "text",
+          key: "cqZone",
+          placeholder: "13"
+        },
+        name: "CQ Zone",
+        desc: "Zona CQ de tu estaci\xF3n (ej. 13)."
+      },
+      {
+        control: {
+          type: "text",
+          key: "grid",
+          placeholder: "GF05"
+        },
+        name: "GRID Locator",
+        desc: "Tu locador Maidenhead (ej. GF05)."
+      },
+      {
+        control: {
+          type: "toggle",
+          key: "autoGenerarQSL"
+        },
+        name: "Generar QSL autom\xE1ticamente al guardar",
+        desc: "Crea la tarjeta QSL en 'QSLs Enviadas' cada vez que guard\xE1s un QSO"
+      }
+    ];
   }
   display() {
     const { containerEl } = this;

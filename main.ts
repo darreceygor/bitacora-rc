@@ -1,4 +1,4 @@
-import { App, Editor, FuzzySuggestModal, ItemView, MarkdownFileInfo, MarkdownPostProcessorContext, MarkdownView, Plugin, PluginSettingTab, Setting, WorkspaceLeaf, Notice, TFile } from 'obsidian';
+import { App, Editor, FuzzySuggestModal, ItemView, MarkdownFileInfo, MarkdownPostProcessorContext, MarkdownView, Plugin, PluginSettingTab, Setting, WorkspaceLeaf, Notice, TFile, SettingDefinitionControl, SettingTextControl, SettingToggleControl, SettingDefinitionItem } from 'obsidian';
 import { BG_B64, LOGO_B64 } from './assets';
 
 const VIEW_TYPE_LOGGER = "logger-view";
@@ -143,6 +143,7 @@ export default class LoggerPlugin extends Plugin {
 		this.registerEvent(
 			this.app.workspace.on('editor-paste', (evt, editor, info) => {
 				if (evt.defaultPrevented) return;
+				evt.preventDefault();
 				void this.onEditorPaste(evt, editor, info);
 			})
 		);
@@ -182,9 +183,7 @@ export default class LoggerPlugin extends Plugin {
 
 	subirImagenEquipo(): Promise<string | null> {
 		return new Promise((resolve) => {
-			const input = document.createElement("input");
-			input.type = "file";
-			input.accept = "image/*";
+			const input = createEl("input", { attr: { type: "file", accept: "image/*" } });
 			input.addEventListener("change", () => {
 				void (async () => {
 					const file = input.files?.[0];
@@ -379,7 +378,7 @@ export default class LoggerPlugin extends Plugin {
 				rst: (fm.rst ?? "").toString(),
 				operador: this.normalizarNombre(fm.operador ?? ""),
 				grid: (fm.grid ?? "").toString().toUpperCase(),
-				comentario: this.normalizarNombre((fm.comentario as string) ?? ""),
+				comentario: this.normalizarNombre(fm.comentario ?? ""),
 				qslEnviada: Boolean(fm.qsl_enviada),
 				qslRecibida: Boolean(fm.url),
 			});
@@ -772,9 +771,7 @@ export default class LoggerPlugin extends Plugin {
 			const blob = new Blob([header + body], { type: "text/plain;charset=utf-8" });
 
 			const url = URL.createObjectURL(blob);
-			const a = document.createElement("a");
-			a.href = url;
-			a.download = `QSOs_${this.licencia()}_${new Date().toISOString().slice(0, 10).replace(/-/g, "")}.adi`;
+			const a = createEl("a", { attr: { href: url, download: `QSOs_${this.licencia()}_${new Date().toISOString().slice(0, 10).replace(/-/g, "")}.adi` } });
 			document.body.appendChild(a);
 			a.click();
 			document.body.removeChild(a);
@@ -787,9 +784,7 @@ export default class LoggerPlugin extends Plugin {
 	}
 
 	importarADIF(): void {
-		const input = document.createElement("input");
-		input.type = "file";
-		input.accept = ".adi,.adif";
+		const input = createEl("input", { attr: { type: "file", accept: ".adi,.adif" } });
 		input.addEventListener("change", (e: Event) => {
 			void (async () => {
 				const file = (e.target as HTMLInputElement).files?.[0];
@@ -1405,6 +1400,64 @@ class BitacoraSettingsTab extends PluginSettingTab {
 	constructor(app: App, plugin: LoggerPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
+	}
+
+	getSettingDefinitions(): SettingDefinitionItem[] {
+		return [
+			{
+				control: {
+					type: 'text',
+					key: 'licencia',
+					placeholder: 'LU9EFF',
+				} satisfies SettingTextControl<'licencia'>,
+				name: 'Licencia',
+				desc: 'Distintiva propia. Se usa en el título, en el ADIF y en la primera fila del formulario.',
+			},
+			{
+				control: {
+					type: 'text',
+					key: 'operador',
+					placeholder: 'Nombre y apellido',
+				} satisfies SettingTextControl<'operador'>,
+				name: 'Nombre de operador',
+				desc: 'Tu nombre. Se guarda en cada QSO y se exporta como my_name en el ADIF.',
+			},
+			{
+				control: {
+					type: 'text',
+					key: 'ituZone',
+					placeholder: '13',
+				} satisfies SettingTextControl<'ituZone'>,
+				name: 'ITU Zone',
+				desc: 'Zona ITU de tu estación (ej. 13).',
+			},
+			{
+				control: {
+					type: 'text',
+					key: 'cqZone',
+					placeholder: '13',
+				} satisfies SettingTextControl<'cqZone'>,
+				name: 'CQ Zone',
+				desc: 'Zona CQ de tu estación (ej. 13).',
+			},
+			{
+				control: {
+					type: 'text',
+					key: 'grid',
+					placeholder: 'GF05',
+				} satisfies SettingTextControl<'grid'>,
+				name: 'GRID Locator',
+				desc: 'Tu locador Maidenhead (ej. GF05).',
+			},
+			{
+				control: {
+					type: 'toggle',
+					key: 'autoGenerarQSL',
+				} satisfies SettingToggleControl<'autoGenerarQSL'>,
+				name: 'Generar QSL automáticamente al guardar',
+				desc: 'Crea la tarjeta QSL en \'QSLs Enviadas\' cada vez que guardás un QSO',
+			},
+		];
 	}
 
 	display(): void {
