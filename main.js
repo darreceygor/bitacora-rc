@@ -551,7 +551,7 @@ var LoggerPlugin = class extends import_obsidian.Plugin {
       } catch {
         new import_obsidian.Notice("No se encontr\xF3 el logo: " + LOGO_PATH);
       }
-      const canvas = document.createElement("canvas");
+      const canvas = createEl("canvas");
       canvas.width = bg.naturalWidth;
       canvas.height = bg.naturalHeight;
       const ctx = canvas.getContext("2d");

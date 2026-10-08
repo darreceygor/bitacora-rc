@@ -1,4 +1,4 @@
-import { App, Editor, FuzzySuggestModal, ItemView, MarkdownFileInfo, MarkdownPostProcessorContext, MarkdownView, Plugin, PluginSettingTab, Setting, WorkspaceLeaf, Notice, TFile, SettingDefinitionControl, SettingTextControl, SettingToggleControl, SettingDefinitionItem } from 'obsidian';
+import { App, Editor, FuzzySuggestModal, ItemView, MarkdownFileInfo, MarkdownPostProcessorContext, MarkdownView, Plugin, PluginSettingTab, Setting, WorkspaceLeaf, Notice, TFile, SettingTextControl, SettingToggleControl, SettingDefinitionItem } from 'obsidian';
 import { BG_B64, LOGO_B64 } from './assets';
 
 const VIEW_TYPE_LOGGER = "logger-view";
@@ -622,7 +622,7 @@ export default class LoggerPlugin extends Plugin {
 				new Notice("No se encontró el logo: " + LOGO_PATH);
 			}
 
-			const canvas = document.createElement("canvas");
+			const canvas = createEl("canvas");
 			canvas.width = bg.naturalWidth;
 			canvas.height = bg.naturalHeight;
 			const ctx = canvas.getContext("2d");
