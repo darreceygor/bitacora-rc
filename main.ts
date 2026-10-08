@@ -1,4 +1,4 @@
-import { App, Editor, FuzzySuggestModal, ItemView, MarkdownFileInfo, MarkdownPostProcessorContext, MarkdownView, Plugin, PluginSettingTab, Setting, WorkspaceLeaf, Notice, TFile, SettingTextControl, SettingToggleControl } from 'obsidian';
+import { App, Editor, FuzzySuggestModal, ItemView, MarkdownFileInfo, MarkdownPostProcessorContext, MarkdownView, Plugin, PluginSettingTab, Setting, WorkspaceLeaf, Notice, TFile, SettingTextControl, SettingToggleControl, SettingDefinitionItem } from 'obsidian';
 import { BG_B64, LOGO_B64 } from './assets';
 
 const VIEW_TYPE_LOGGER = "logger-view";
@@ -174,8 +174,8 @@ export default class LoggerPlugin extends Plugin {
 
 		bloque.createEl("hr", { cls: "qso-qsl-sep" });
 
-		bloque.createEl("div", { text: "QSL Recibida", cls: "qso-qsl-titulo" });
-		bloque.createEl("div", {
+		bloque.createDiv({ text: "QSL Recibida", cls: "qso-qsl-titulo" });
+		bloque.createDiv({
 			text: "Pegar la captura de la QSL recibida por el contacto realizado",
 			cls: "qso-qsl-subtitulo",
 		});
@@ -1226,7 +1226,7 @@ ${comentario}
 				}).open();
 			});
 
-			headerDiv.createEl("span", { text: "Clic para cambiar", cls: "logger-header-hint" });
+			headerDiv.createSpan({ text: "Clic para cambiar", cls: "logger-header-hint" });
 		} catch (e) {
 			console.warn("No se pudo cargar la imagen de header:", e);
 		}
