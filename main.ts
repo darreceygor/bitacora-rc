@@ -1,4 +1,4 @@
-import { App, Editor, FuzzySuggestModal, ItemView, MarkdownFileInfo, MarkdownPostProcessorContext, MarkdownView, Plugin, PluginSettingTab, Setting, WorkspaceLeaf, Notice, TFile, SettingTextControl, SettingToggleControl, SettingDefinitionItem } from 'obsidian';
+import { App, Editor, FuzzySuggestModal, ItemView, MarkdownFileInfo, MarkdownPostProcessorContext, MarkdownView, Plugin, PluginSettingTab, Setting, WorkspaceLeaf, Notice, TFile, SettingTextControl, SettingToggleControl } from 'obsidian';
 import { BG_B64, LOGO_B64 } from './assets';
 
 const VIEW_TYPE_LOGGER = "logger-view";
