@@ -66,7 +66,7 @@ export default class LoggerPlugin extends Plugin {
 	private ribbonIcon: HTMLElement | null = null;
 
 	async onload() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, (await this.loadData()) as Partial<BitacoraSettings>);
 
 		// Mover carpetas viejas de la raíz a BITACORA DE RADIO
 		await this.migrateFolders();
@@ -97,7 +97,7 @@ export default class LoggerPlugin extends Plugin {
 
 		// Agregar ícono en la barra lateral izquierda
 		this.ribbonIcon = this.addRibbonIcon('radio', `Abrir ${this.titulo()}`, () => {
-			this.activateView();
+			void this.activateView();
 		});
 
 		// Ajustes del plugin
@@ -142,6 +142,7 @@ export default class LoggerPlugin extends Plugin {
 		// Pegar imagen en una nota QSO_* => se guarda como QSL_* en QSLs/
 		this.registerEvent(
 			this.app.workspace.on('editor-paste', (evt, editor, info) => {
+				if (evt.defaultPrevented) return;
 				void this.onEditorPaste(evt, editor, info);
 			})
 		);
@@ -184,23 +185,25 @@ export default class LoggerPlugin extends Plugin {
 			const input = document.createElement("input");
 			input.type = "file";
 			input.accept = "image/*";
-			input.addEventListener("change", async () => {
-				const file = input.files?.[0];
-				if (!file) {
-					resolve(null);
-					return;
-				}
-				try {
-					await this.ensureFolder(IMG_FOLDER);
-					const ext = this.imageExt(file);
-					const base = file.name.replace(/\.[a-z0-9]+$/i, "") || "fondo_qsl";
-					const path = await this.uniquePath(`${IMG_FOLDER}/${base}`, ext);
-					await this.app.vault.createBinary(path, await file.arrayBuffer());
-					resolve(path);
-				} catch (e) {
-					new Notice("No se pudo cargar la imagen: " + (e instanceof Error ? e.message : String(e)));
-					resolve(null);
-				}
+			input.addEventListener("change", () => {
+				void (async () => {
+					const file = input.files?.[0];
+					if (!file) {
+						resolve(null);
+						return;
+					}
+					try {
+						await this.ensureFolder(IMG_FOLDER);
+						const ext = this.imageExt(file);
+						const base = file.name.replace(/\.[a-z0-9]+$/i, "") || "fondo_qsl";
+						const path = await this.uniquePath(`${IMG_FOLDER}/${base}`, ext);
+						await this.app.vault.createBinary(path, await file.arrayBuffer());
+						resolve(path);
+					} catch (e) {
+						new Notice("No se pudo cargar la imagen: " + (e instanceof Error ? e.message : String(e)));
+						resolve(null);
+					}
+				})();
 			});
 			input.click();
 		});
@@ -271,7 +274,7 @@ export default class LoggerPlugin extends Plugin {
 				const fix = this.corregirLicenciaYNombre(crudoLic, crudoNom);
 
 				if (fix.licencia !== crudoLic || fix.nombre !== crudoNom) {
-					await this.app.fileManager.processFrontMatter(file, (f) => {
+					await this.app.fileManager.processFrontMatter(file, (f: Record<string, unknown>) => {
 						f.corresponsal = fix.licencia;
 						if (crudoNom || fix.nombre) f.nombre = fix.nombre;
 					});
@@ -358,25 +361,25 @@ export default class LoggerPlugin extends Plugin {
 		const filas: FilaQSO[] = [];
 
 		for (const file of archivos) {
-			const fm: Record<string, any> = this.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
-			const lic = this.normalizarLicencia(fm.corresponsal ?? "");
-			const fix = lic && !this.pareceLicencia(lic) && this.pareceLicencia(fm.nombre)
+			const fm: Record<string, unknown> = this.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
+			const lic = this.normalizarLicencia((fm.corresponsal as string) ?? "");
+			const fix = lic && !this.pareceLicencia(lic) && this.pareceLicencia(fm.nombre as string)
 				? this.corregirLicenciaYNombre(fm.corresponsal, fm.nombre)
-				: { licencia: lic, nombre: this.normalizarNombre(fm.nombre ?? ""), corregido: false };
+				: { licencia: lic, nombre: this.normalizarNombre((fm.nombre as string) ?? ""), corregido: false };
 
 			filas.push({
 				file,
 				licencia: fix.licencia,
 				nombre: fix.nombre,
-				fecha: (fm.fecha ?? "").toString(),
-				hora: (fm.hora_utc ?? fm.hora ?? "").toString(),
-				banda: (fm.banda ?? "").toString(),
-				modo: (fm.modo ?? "").toString(),
-				propagacion: (fm.propagacion ?? "").toString(),
-				rst: (fm.rst ?? "").toString(),
-				operador: this.normalizarNombre(fm.operador ?? ""),
-				grid: (fm.grid ?? "").toString().toUpperCase(),
-				comentario: this.normalizarNombre(fm.comentario ?? ""),
+				fecha: ((fm.fecha as string) ?? "").toString(),
+				hora: ((fm.hora_utc as string) ?? (fm.hora as string) ?? "").toString(),
+				banda: ((fm.banda as string) ?? "").toString(),
+				modo: ((fm.modo as string) ?? "").toString(),
+				propagacion: ((fm.propagacion as string) ?? "").toString(),
+				rst: ((fm.rst as string) ?? "").toString(),
+				operador: this.normalizarNombre((fm.operador as string) ?? ""),
+				grid: ((fm.grid as string) ?? "").toString().toUpperCase(),
+				comentario: this.normalizarNombre((fm.comentario as string) ?? ""),
 				qslEnviada: Boolean(fm.qsl_enviada),
 				qslRecibida: Boolean(fm.url),
 			});
@@ -389,12 +392,12 @@ export default class LoggerPlugin extends Plugin {
 	async activateTableView() {
 		const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_TABLA);
 		if (existing.length > 0) {
-			this.app.workspace.revealLeaf(existing[0]);
+			await this.app.workspace.revealLeaf(existing[0]);
 			return;
 		}
 		const leaf = this.app.workspace.getLeaf(true);
 		await leaf.setViewState({ type: VIEW_TYPE_TABLA, active: true });
-		this.app.workspace.revealLeaf(leaf);
+		await this.app.workspace.revealLeaf(leaf);
 	}
 
 	async saveSettings() {
@@ -438,7 +441,7 @@ export default class LoggerPlugin extends Plugin {
 			["escudo.jpg", LOGO_PATH, LOGO_B64],
 		];
 
-		for (const [name, dest, b64] of assets) {
+		for (const [_name, dest, b64] of assets) {
 			if (this.app.vault.getAbstractFileByPath(dest)) continue;
 			try {
 				const binary = this.base64ToBinary(b64);
@@ -521,7 +524,7 @@ export default class LoggerPlugin extends Plugin {
 
 		const link = saved;
 		if (link) {
-			await this.app.fileManager.processFrontMatter(file, (fm) => {
+			await this.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
 				fm.url = `[[${link}]]`;
 			});
 			new Notice(`QSL guardada en ${QSL_FOLDER}/`);
@@ -587,19 +590,19 @@ export default class LoggerPlugin extends Plugin {
 		return random.path;
 	}
 
-	async generarTarjetaQSL(file: TFile, data?: Record<string, any>, fondo?: string) {
+	async generarTarjetaQSL(file: TFile, data?: Record<string, unknown>, fondo?: string) {
 		try {
 			const cache = this.app.metadataCache.getFileCache(file);
-			const fm: Record<string, any> = data ?? cache?.frontmatter ?? {};
+			const fm: Record<string, unknown> = data ?? cache?.frontmatter ?? {};
 
-			const emisor = fm.emisor ?? fm.mi_call ?? this.licencia();
-			const corresponsal = this.normalizarLicencia(fm.corresponsal ?? "");
-			const fecha = fm.fecha ?? "";
-			const hora = fm.hora_utc ?? fm.hora ?? "";
-			const banda = fm.banda ?? "";
-			const modo = fm.modo ?? "";
-			const rst = fm.rst ?? fm.rst_s ?? "";
-			const comentario = fm.comentario ?? "Gracias por el contacto! 73!";
+			const emisor = (fm.emisor as string) ?? (fm.mi_call as string) ?? this.licencia();
+			const corresponsal = this.normalizarLicencia((fm.corresponsal as string) ?? "");
+			const fecha = (fm.fecha as string) ?? "";
+			const hora = (fm.hora_utc as string) ?? (fm.hora as string) ?? "";
+			const banda = (fm.banda as string) ?? "";
+			const modo = (fm.modo as string) ?? "";
+			const rst = (fm.rst as string) ?? (fm.rst_s as string) ?? "";
+			const comentario = (fm.comentario as string) ?? "Gracias por el contacto! 73!";
 
 			const line1 = `${emisor} → ${corresponsal} · ${fecha} ${hora} UTC`;
 			const line2 = `${banda} · ${modo} · RST ${rst} · ${comentario}`;
@@ -665,7 +668,7 @@ export default class LoggerPlugin extends Plugin {
 
 			const blob = await new Promise<Blob>((resolve, reject) => {
 				canvas.toBlob(
-					(b) => (b ? resolve(b) : reject(new Error("No se pudo exportar la imagen"))),
+					(b: Blob | null) => (b ? resolve(b) : reject(new Error("No se pudo exportar la imagen"))),
 					"image/jpeg",
 					0.92
 				);
@@ -681,7 +684,7 @@ export default class LoggerPlugin extends Plugin {
 				await this.app.vault.createBinary(path, bytes);
 			}
 
-			await this.app.fileManager.processFrontMatter(file, (f) => {
+			await this.app.fileManager.processFrontMatter(file, (f: Record<string, unknown>) => {
 				f.qsl_enviada = `[[${path}]]`;
 			});
 
@@ -708,26 +711,26 @@ export default class LoggerPlugin extends Plugin {
 			const rows: { key: string; line: string }[] = [];
 
 			for (const f of files) {
-				const fm: Record<string, any> = this.app.metadataCache.getFileCache(f)?.frontmatter ?? {};
-				const fix = this.corregirLicenciaYNombre(fm.corresponsal ?? "", fm.nombre ?? "");
+				const fm: Record<string, unknown> = this.app.metadataCache.getFileCache(f)?.frontmatter ?? {};
+				const fix = this.corregirLicenciaYNombre((fm.corresponsal as string) ?? "", (fm.nombre as string) ?? "");
 				const call = fix.licencia;
 				if (!call) continue;
 
-			const emisor = (fm.emisor ?? fm.mi_call ?? this.licencia()).toString().trim().toUpperCase();
+			const emisor = ((fm.emisor as string) ?? (fm.mi_call as string) ?? this.licencia()).toString().trim().toUpperCase();
 			const nombre = fix.nombre;
-			const operador = (fm.operador ?? this.settings.operador ?? "").toString().trim();
-			const ituZone = (fm.itu_zone ?? this.settings.ituZone ?? "").toString().trim();
-			const cqZone = (fm.cq_zone ?? this.settings.cqZone ?? "").toString().trim();
-			const grid = (fm.grid ?? this.settings.grid ?? "").toString().trim().toUpperCase();
-				const fecha = (fm.fecha ?? "").toString().trim().replace(/-/g, "");
-				const hora = (fm.hora_utc ?? fm.hora ?? "").toString().trim().replace(":", "");
-				const banda = (fm.banda ?? "").toString().trim().toUpperCase();
-				let modo = (fm.modo ?? "").toString().trim().toUpperCase();
+			const operador = ((fm.operador as string) ?? this.settings.operador ?? "").toString().trim();
+			const ituZone = ((fm.itu_zone as string) ?? this.settings.ituZone ?? "").toString().trim();
+			const cqZone = ((fm.cq_zone as string) ?? this.settings.cqZone ?? "").toString().trim();
+			const grid = ((fm.grid as string) ?? this.settings.grid ?? "").toString().trim().toUpperCase();
+				const fecha = ((fm.fecha as string) ?? "").toString().trim().replace(/-/g, "");
+				const hora = ((fm.hora_utc as string) ?? (fm.hora as string) ?? "").toString().trim().replace(":", "");
+				const banda = ((fm.banda as string) ?? "").toString().trim().toUpperCase();
+				let modo = ((fm.modo as string) ?? "").toString().trim().toUpperCase();
 				if (modo === "ECHOLINK") modo = "DV";
-				const rstSent = (fm.rst ?? fm.rst_s ?? "").toString().trim();
-				const rstRcvd = (fm.rst ?? fm.rst_r ?? rstSent).toString().trim();
-				const prop = (fm.propagacion ?? "").toString().trim().toUpperCase();
-				const comentario = (fm.comentario ?? "").toString().trim();
+				const rstSent = ((fm.rst as string) ?? (fm.rst_s as string) ?? "").toString().trim();
+				const rstRcvd = ((fm.rst as string) ?? (fm.rst_r as string) ?? rstSent).toString().trim();
+				const prop = ((fm.propagacion as string) ?? "").toString().trim().toUpperCase();
+				const comentario = ((fm.comentario as string) ?? "").toString().trim();
 
 				let line = "";
 				line += this.adifField("call", call);
@@ -783,15 +786,14 @@ export default class LoggerPlugin extends Plugin {
 		}
 	}
 
-	async importarADIF() {
-		return new Promise<void>((resolve) => {
-			const input = document.createElement("input");
-			input.type = "file";
-			input.accept = ".adi,.adif";
-			input.addEventListener("change", async (e) => {
+	importarADIF(): void {
+		const input = document.createElement("input");
+		input.type = "file";
+		input.accept = ".adi,.adif";
+		input.addEventListener("change", (e: Event) => {
+			void (async () => {
 				const file = (e.target as HTMLInputElement).files?.[0];
 				if (!file) {
-					resolve();
 					return;
 				}
 				try {
@@ -799,7 +801,6 @@ export default class LoggerPlugin extends Plugin {
 					const qsos = this.parseADIF(text);
 					if (qsos.length === 0) {
 						new Notice("No se encontraron QSOs válidos en el archivo ADIF");
-						resolve();
 						return;
 					}
 					await this.ensureFolder(FOLDER_NAME);
@@ -863,10 +864,9 @@ ${qso.comment ?? "Gracias por el contacto! 73!"}
 				} catch (err) {
 					new Notice("Error al importar ADIF: " + (err instanceof Error ? err.message : String(err)));
 				}
-				resolve();
-			});
-			input.click();
+			})();
 		});
+		input.click();
 	}
 
 	parseADIF(text: string): Record<string, string>[] {
@@ -912,7 +912,7 @@ ${qso.comment ?? "Gracias por el contacto! 73!"}
 		const existing = workspace.getLeavesOfType(VIEW_TYPE_LOGGER);
 
 		if (existing.length > 0) {
-			workspace.revealLeaf(existing[0]);
+			await workspace.revealLeaf(existing[0]);
 			return;
 		}
 
@@ -922,7 +922,7 @@ ${qso.comment ?? "Gracias por el contacto! 73!"}
 			return;
 		}
 		await leaf.setViewState({ type: VIEW_TYPE_LOGGER, active: true });
-		workspace.revealLeaf(leaf);
+		await workspace.revealLeaf(leaf);
 	}
 }
 
@@ -1074,46 +1074,47 @@ class LoggerView extends ItemView {
 		});
 
 		// Acción al hacer clic
-		btnSave.addEventListener("click", async () => {
-			const fix = this.plugin.corregirLicenciaYNombre(inputCall.value, inputNombre.value);
-			const call = fix.licencia;
-			const nombre = fix.nombre;
+		btnSave.addEventListener("click", () => {
+			void (async () => {
+				const fix = this.plugin.corregirLicenciaYNombre(inputCall.value, inputNombre.value);
+				const call = fix.licencia;
+				const nombre = fix.nombre;
 
-			if (!call) {
-				new Notice("Debe ingresar la licencia");
-				return;
-			}
-			if (fix.corregido) {
-				new Notice(`Licencia y Nombre estaban invertidos: se corrigió (${call})`);
-			} else if (!this.plugin.pareceLicencia(call)) {
-				new Notice(`⚠ "${call}" no parece una distintiva (ej. LU9EFF). Verificá el dato.`);
-			}
+				if (!call) {
+					new Notice("Debe ingresar la licencia");
+					return;
+				}
+				if (fix.corregido) {
+					new Notice(`Licencia y Nombre estaban invertidos: se corrigió (${call})`);
+				} else if (!this.plugin.pareceLicencia(call)) {
+					new Notice(`⚠ "${call}" no parece una distintiva (ej. LU9EFF). Verificá el dato.`);
+				}
 
-			inputCall.value = call;
-			inputNombre.value = nombre;
+				inputCall.value = call;
+				inputNombre.value = nombre;
 
-			const emisor = this.plugin.licencia();
-			const operador = this.plugin.settings.operador;
-			const ituZone = this.plugin.settings.ituZone;
-			const cqZone = this.plugin.settings.cqZone;
-			const grid = this.plugin.settings.grid;
-			const fecha = inputFecha.value || fechaHoy;
-			const hora = inputHora.value || horaUTC;
-			const banda = selectBanda.value;
-			const modo = selectModo.value;
-			const prop = selectProp.value;
-			const rst = inputRst.value.trim();
-			const comentario = this.plugin.normalizarNombre(inputCom.value);
+				const emisor = this.plugin.licencia();
+				const operador = this.plugin.settings.operador;
+				const ituZone = this.plugin.settings.ituZone;
+				const cqZone = this.plugin.settings.cqZone;
+				const grid = this.plugin.settings.grid;
+				const fecha = inputFecha.value || fechaHoy;
+				const hora = inputHora.value || horaUTC;
+				const banda = selectBanda.value;
+				const modo = selectModo.value;
+				const prop = selectProp.value;
+				const rst = inputRst.value.trim();
+				const comentario = this.plugin.normalizarNombre(inputCom.value);
 
-			const filename = `QSO_${fecha.replace(/-/g, '')}_${hora.replace(':', '')}_${banda.toLowerCase().replace(/[^a-z0-9]/g, '')}_${this.plugin.licenciaArchivo(call)}.md`;
-			const filepath = `${FOLDER_NAME}/${filename}`;
+				const filename = `QSO_${fecha.replace(/-/g, '')}_${hora.replace(':', '')}_${banda.toLowerCase().replace(/[^a-z0-9]/g, '')}_${this.plugin.licenciaArchivo(call)}.md`;
+				const filepath = `${FOLDER_NAME}/${filename}`;
 
-			if (this.app.vault.getAbstractFileByPath(filepath)) {
-				new Notice(`Ya existe un QSO con ${call} en ${fecha} ${hora}`);
-				return;
-			}
+				if (this.app.vault.getAbstractFileByPath(filepath)) {
+					new Notice(`Ya existe un QSO con ${call} en ${fecha} ${hora}`);
+					return;
+				}
 
-			const content = `---
+				const content = `---
 emisor: ${emisor}
 corresponsal: ${call}
 nombre: ${nombre}
@@ -1132,47 +1133,50 @@ comentario: ${comentario}
 ---
 ${comentario}
 `;
-			try {
-				await this.app.vault.create(filepath, content);
-				new Notice(`QSO con ${call} guardado con éxito!`);
-				inputCall.value = "";
-				inputNombre.value = "";
-				inputRst.value = "";
+				try {
+					await this.app.vault.create(filepath, content);
+					new Notice(`QSO con ${call} guardado con éxito!`);
+					inputCall.value = "";
+					inputNombre.value = "";
+					inputRst.value = "";
 
-				// Generar la tarjeta QSL si está habilitado
-				if (this.plugin.settings.autoGenerarQSL) {
-					const created = this.app.vault.getAbstractFileByPath(filepath);
-					if (created instanceof TFile) {
-						const qslData = {
-							emisor,
-							corresponsal: call,
-							nombre,
-							fecha,
-							hora_utc: hora,
-							banda,
-							modo,
-							propagacion: prop,
-							rst,
-							operador,
-							itu_zone: ituZone,
-							cq_zone: cqZone,
-							grid,
-							comentario,
-						};
-						new QSLFondoModal(this.app, this.plugin, async (usarAleatorio: boolean) => {
-							if (usarAleatorio) {
-								await this.plugin.generarTarjetaQSL(created, qslData);
-							} else {
-								new FondoQSLModal(this.app, this.plugin, async (fondo) => {
-									await this.plugin.generarTarjetaQSL(created, qslData, fondo);
-								}).open();
-							}
-						}).open();
+					// Generar la tarjeta QSL si está habilitado
+					if (this.plugin.settings.autoGenerarQSL) {
+						const created = this.app.vault.getAbstractFileByPath(filepath);
+						if (created instanceof TFile) {
+							const qslData = {
+								emisor,
+								corresponsal: call,
+								nombre,
+								fecha,
+								hora_utc: hora,
+								banda,
+								modo,
+								propagacion: prop,
+								rst,
+								operador,
+								itu_zone: ituZone,
+								cq_zone: cqZone,
+								grid,
+								comentario,
+							};
+							new QSLFondoModal(this.app, this.plugin, (usarAleatorio: boolean) => {
+								void (async () => {
+									if (usarAleatorio) {
+										await this.plugin.generarTarjetaQSL(created, qslData);
+									} else {
+										new FondoQSLModal(this.app, this.plugin, (fondo) => {
+											void this.plugin.generarTarjetaQSL(created, qslData, fondo);
+										}).open();
+									}
+								})();
+							}).open();
+						}
 					}
+				} catch (e) {
+					new Notice("Error al guardar: " + (e instanceof Error ? e.message : String(e)));
 				}
-			} catch (e) {
-				new Notice("Error al guardar: " + (e instanceof Error ? e.message : String(e)));
-			}
+			})();
 		});
 	}
 
@@ -1188,7 +1192,6 @@ ${comentario}
 		const headerFile = files[0];
 
 		try {
-			const img = await this.plugin.loadImage(headerFile.path);
 			const headerDiv = container.createDiv({ cls: "logger-header-image" });
 
 			const headerImg = headerDiv.createEl("img", {
@@ -1208,18 +1211,23 @@ ${comentario}
 
 			// Click para cambiar imagen
 			headerDiv.addEventListener("click", () => {
-				new FondoQSLModal(this.app, this.plugin, async (nuevaRuta) => {
-					if (nuevaRuta) {
-						headerImg.src = this.app.vault.getResourcePath(this.app.vault.getAbstractFileByPath(nuevaRuta) as TFile);
-						const newImg = await this.plugin.loadImage(nuevaRuta);
-						const aspectRatio = newImg.naturalWidth / newImg.naturalHeight;
-						headerDiv.classList.remove("logger-header--wide", "logger-header--narrow");
-						if (aspectRatio >= 1.5) {
-							headerDiv.addClass("logger-header--wide");
-						} else {
-							headerDiv.addClass("logger-header--narrow");
+				new FondoQSLModal(this.app, this.plugin, (nuevaRuta) => {
+					void (async () => {
+						if (nuevaRuta) {
+							const file = this.app.vault.getAbstractFileByPath(nuevaRuta);
+							if (file instanceof TFile) {
+								headerImg.src = this.app.vault.getResourcePath(file);
+								const newImg = await this.plugin.loadImage(nuevaRuta);
+								const aspectRatio = newImg.naturalWidth / newImg.naturalHeight;
+								headerDiv.classList.remove("logger-header--wide", "logger-header--narrow");
+								if (aspectRatio >= 1.5) {
+									headerDiv.addClass("logger-header--wide");
+								} else {
+									headerDiv.addClass("logger-header--narrow");
+								}
+							}
 						}
-					}
+					})();
 				}).open();
 			});
 
@@ -1342,7 +1350,7 @@ class QSLFondoModal extends FuzzySuggestModal<string> {
 		return item === "usar-aleatorio" ? "🎲 Usar fondo aleatorio" : "🖼️ Elegir fondo específico";
 	}
 
-	async onChooseItem(item: string): Promise<void> {
+	onChooseItem(item: string): void {
 		this.onPick(item === "usar-aleatorio");
 	}
 }
@@ -1378,10 +1386,12 @@ class FondoQSLModal extends FuzzySuggestModal<string> {
 		return item === OPCION_SUBIR ? "📁 Subir imagen del equipo…" : item;
 	}
 
-	async onChooseItem(item: string): Promise<void> {
+	onChooseItem(item: string): void {
 		if (item === OPCION_SUBIR) {
-			const ruta = await this.plugin.subirImagenEquipo();
-			if (ruta) this.onPick(ruta);
+			void (async () => {
+				const ruta = await this.plugin.subirImagenEquipo();
+				if (ruta) this.onPick(ruta);
+			})();
 			return;
 		}
 		this.onPick(item);
@@ -1401,7 +1411,9 @@ class BitacoraSettingsTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		containerEl.createEl("h2", { text: "Bitácora de radioaficionado" });
+		new Setting(containerEl)
+			.setName("Bitácora de radioaficionado")
+			.setHeading();
 
 		new Setting(containerEl)
 			.setName("Licencia")

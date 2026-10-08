@@ -84,7 +84,7 @@ var LoggerPlugin = class extends import_obsidian.Plugin {
     );
     await this.normalizarRegistros();
     this.ribbonIcon = this.addRibbonIcon("radio", `Abrir ${this.titulo()}`, () => {
-      this.activateView();
+      void this.activateView();
     });
     this.addSettingTab(new BitacoraSettingsTab(this.app, this));
     this.addCommand({
@@ -119,6 +119,8 @@ var LoggerPlugin = class extends import_obsidian.Plugin {
     });
     this.registerEvent(
       this.app.workspace.on("editor-paste", (evt, editor, info) => {
+        if (evt.defaultPrevented)
+          return;
         void this.onEditorPaste(evt, editor, info);
       })
     );
@@ -156,23 +158,25 @@ var LoggerPlugin = class extends import_obsidian.Plugin {
       const input = document.createElement("input");
       input.type = "file";
       input.accept = "image/*";
-      input.addEventListener("change", async () => {
-        const file = input.files?.[0];
-        if (!file) {
-          resolve(null);
-          return;
-        }
-        try {
-          await this.ensureFolder(IMG_FOLDER);
-          const ext = this.imageExt(file);
-          const base = file.name.replace(/\.[a-z0-9]+$/i, "") || "fondo_qsl";
-          const path = await this.uniquePath(`${IMG_FOLDER}/${base}`, ext);
-          await this.app.vault.createBinary(path, await file.arrayBuffer());
-          resolve(path);
-        } catch (e) {
-          new import_obsidian.Notice("No se pudo cargar la imagen: " + (e instanceof Error ? e.message : String(e)));
-          resolve(null);
-        }
+      input.addEventListener("change", () => {
+        void (async () => {
+          const file = input.files?.[0];
+          if (!file) {
+            resolve(null);
+            return;
+          }
+          try {
+            await this.ensureFolder(IMG_FOLDER);
+            const ext = this.imageExt(file);
+            const base = file.name.replace(/\.[a-z0-9]+$/i, "") || "fondo_qsl";
+            const path = await this.uniquePath(`${IMG_FOLDER}/${base}`, ext);
+            await this.app.vault.createBinary(path, await file.arrayBuffer());
+            resolve(path);
+          } catch (e) {
+            new import_obsidian.Notice("No se pudo cargar la imagen: " + (e instanceof Error ? e.message : String(e)));
+            resolve(null);
+          }
+        })();
       });
       input.click();
     });
@@ -334,12 +338,12 @@ var LoggerPlugin = class extends import_obsidian.Plugin {
   async activateTableView() {
     const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_TABLA);
     if (existing.length > 0) {
-      this.app.workspace.revealLeaf(existing[0]);
+      await this.app.workspace.revealLeaf(existing[0]);
       return;
     }
     const leaf = this.app.workspace.getLeaf(true);
     await leaf.setViewState({ type: VIEW_TYPE_TABLA, active: true });
-    this.app.workspace.revealLeaf(leaf);
+    await this.app.workspace.revealLeaf(leaf);
   }
   async saveSettings() {
     await this.saveData(this.settings);
@@ -377,7 +381,7 @@ var LoggerPlugin = class extends import_obsidian.Plugin {
       ["qsl_background.jpg", BG_PATH, BG_B64],
       ["escudo.jpg", LOGO_PATH, LOGO_B64]
     ];
-    for (const [name, dest, b64] of assets) {
+    for (const [_name, dest, b64] of assets) {
       if (this.app.vault.getAbstractFileByPath(dest))
         continue;
       try {
@@ -684,15 +688,14 @@ var LoggerPlugin = class extends import_obsidian.Plugin {
       new import_obsidian.Notice("Error al exportar ADIF: " + (e instanceof Error ? e.message : String(e)));
     }
   }
-  async importarADIF() {
-    return new Promise((resolve) => {
-      const input = document.createElement("input");
-      input.type = "file";
-      input.accept = ".adi,.adif";
-      input.addEventListener("change", async (e) => {
+  importarADIF() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".adi,.adif";
+    input.addEventListener("change", (e) => {
+      void (async () => {
         const file = e.target.files?.[0];
         if (!file) {
-          resolve();
           return;
         }
         try {
@@ -700,7 +703,6 @@ var LoggerPlugin = class extends import_obsidian.Plugin {
           const qsos = this.parseADIF(text);
           if (qsos.length === 0) {
             new import_obsidian.Notice("No se encontraron QSOs v\xE1lidos en el archivo ADIF");
-            resolve();
             return;
           }
           await this.ensureFolder(FOLDER_NAME);
@@ -765,10 +767,9 @@ ${qso.comment ?? "Gracias por el contacto! 73!"}
         } catch (err) {
           new import_obsidian.Notice("Error al importar ADIF: " + (err instanceof Error ? err.message : String(err)));
         }
-        resolve();
-      });
-      input.click();
+      })();
     });
+    input.click();
   }
   parseADIF(text) {
     const records = [];
@@ -808,7 +809,7 @@ ${qso.comment ?? "Gracias por el contacto! 73!"}
     const { workspace } = this.app;
     const existing = workspace.getLeavesOfType(VIEW_TYPE_LOGGER);
     if (existing.length > 0) {
-      workspace.revealLeaf(existing[0]);
+      await workspace.revealLeaf(existing[0]);
       return;
     }
     const leaf = workspace.getRightLeaf(false);
@@ -817,7 +818,7 @@ ${qso.comment ?? "Gracias por el contacto! 73!"}
       return;
     }
     await leaf.setViewState({ type: VIEW_TYPE_LOGGER, active: true });
-    workspace.revealLeaf(leaf);
+    await workspace.revealLeaf(leaf);
   }
 };
 var LoggerView = class extends import_obsidian.ItemView {
@@ -925,40 +926,41 @@ var LoggerView = class extends import_obsidian.ItemView {
     btnImport.addEventListener("click", () => {
       void this.plugin.importarADIF();
     });
-    btnSave.addEventListener("click", async () => {
-      const fix = this.plugin.corregirLicenciaYNombre(inputCall.value, inputNombre.value);
-      const call = fix.licencia;
-      const nombre = fix.nombre;
-      if (!call) {
-        new import_obsidian.Notice("Debe ingresar la licencia");
-        return;
-      }
-      if (fix.corregido) {
-        new import_obsidian.Notice(`Licencia y Nombre estaban invertidos: se corrigi\xF3 (${call})`);
-      } else if (!this.plugin.pareceLicencia(call)) {
-        new import_obsidian.Notice(`\u26A0 "${call}" no parece una distintiva (ej. LU9EFF). Verific\xE1 el dato.`);
-      }
-      inputCall.value = call;
-      inputNombre.value = nombre;
-      const emisor = this.plugin.licencia();
-      const operador = this.plugin.settings.operador;
-      const ituZone = this.plugin.settings.ituZone;
-      const cqZone = this.plugin.settings.cqZone;
-      const grid = this.plugin.settings.grid;
-      const fecha = inputFecha.value || fechaHoy;
-      const hora = inputHora.value || horaUTC;
-      const banda = selectBanda.value;
-      const modo = selectModo.value;
-      const prop = selectProp.value;
-      const rst = inputRst.value.trim();
-      const comentario = this.plugin.normalizarNombre(inputCom.value);
-      const filename = `QSO_${fecha.replace(/-/g, "")}_${hora.replace(":", "")}_${banda.toLowerCase().replace(/[^a-z0-9]/g, "")}_${this.plugin.licenciaArchivo(call)}.md`;
-      const filepath = `${FOLDER_NAME}/${filename}`;
-      if (this.app.vault.getAbstractFileByPath(filepath)) {
-        new import_obsidian.Notice(`Ya existe un QSO con ${call} en ${fecha} ${hora}`);
-        return;
-      }
-      const content = `---
+    btnSave.addEventListener("click", () => {
+      void (async () => {
+        const fix = this.plugin.corregirLicenciaYNombre(inputCall.value, inputNombre.value);
+        const call = fix.licencia;
+        const nombre = fix.nombre;
+        if (!call) {
+          new import_obsidian.Notice("Debe ingresar la licencia");
+          return;
+        }
+        if (fix.corregido) {
+          new import_obsidian.Notice(`Licencia y Nombre estaban invertidos: se corrigi\xF3 (${call})`);
+        } else if (!this.plugin.pareceLicencia(call)) {
+          new import_obsidian.Notice(`\u26A0 "${call}" no parece una distintiva (ej. LU9EFF). Verific\xE1 el dato.`);
+        }
+        inputCall.value = call;
+        inputNombre.value = nombre;
+        const emisor = this.plugin.licencia();
+        const operador = this.plugin.settings.operador;
+        const ituZone = this.plugin.settings.ituZone;
+        const cqZone = this.plugin.settings.cqZone;
+        const grid = this.plugin.settings.grid;
+        const fecha = inputFecha.value || fechaHoy;
+        const hora = inputHora.value || horaUTC;
+        const banda = selectBanda.value;
+        const modo = selectModo.value;
+        const prop = selectProp.value;
+        const rst = inputRst.value.trim();
+        const comentario = this.plugin.normalizarNombre(inputCom.value);
+        const filename = `QSO_${fecha.replace(/-/g, "")}_${hora.replace(":", "")}_${banda.toLowerCase().replace(/[^a-z0-9]/g, "")}_${this.plugin.licenciaArchivo(call)}.md`;
+        const filepath = `${FOLDER_NAME}/${filename}`;
+        if (this.app.vault.getAbstractFileByPath(filepath)) {
+          new import_obsidian.Notice(`Ya existe un QSO con ${call} en ${fecha} ${hora}`);
+          return;
+        }
+        const content = `---
 emisor: ${emisor}
 corresponsal: ${call}
 nombre: ${nombre}
@@ -977,45 +979,48 @@ comentario: ${comentario}
 ---
 ${comentario}
 `;
-      try {
-        await this.app.vault.create(filepath, content);
-        new import_obsidian.Notice(`QSO con ${call} guardado con \xE9xito!`);
-        inputCall.value = "";
-        inputNombre.value = "";
-        inputRst.value = "";
-        if (this.plugin.settings.autoGenerarQSL) {
-          const created = this.app.vault.getAbstractFileByPath(filepath);
-          if (created instanceof import_obsidian.TFile) {
-            const qslData = {
-              emisor,
-              corresponsal: call,
-              nombre,
-              fecha,
-              hora_utc: hora,
-              banda,
-              modo,
-              propagacion: prop,
-              rst,
-              operador,
-              itu_zone: ituZone,
-              cq_zone: cqZone,
-              grid,
-              comentario
-            };
-            new QSLFondoModal(this.app, this.plugin, async (usarAleatorio) => {
-              if (usarAleatorio) {
-                await this.plugin.generarTarjetaQSL(created, qslData);
-              } else {
-                new FondoQSLModal(this.app, this.plugin, async (fondo) => {
-                  await this.plugin.generarTarjetaQSL(created, qslData, fondo);
-                }).open();
-              }
-            }).open();
+        try {
+          await this.app.vault.create(filepath, content);
+          new import_obsidian.Notice(`QSO con ${call} guardado con \xE9xito!`);
+          inputCall.value = "";
+          inputNombre.value = "";
+          inputRst.value = "";
+          if (this.plugin.settings.autoGenerarQSL) {
+            const created = this.app.vault.getAbstractFileByPath(filepath);
+            if (created instanceof import_obsidian.TFile) {
+              const qslData = {
+                emisor,
+                corresponsal: call,
+                nombre,
+                fecha,
+                hora_utc: hora,
+                banda,
+                modo,
+                propagacion: prop,
+                rst,
+                operador,
+                itu_zone: ituZone,
+                cq_zone: cqZone,
+                grid,
+                comentario
+              };
+              new QSLFondoModal(this.app, this.plugin, (usarAleatorio) => {
+                void (async () => {
+                  if (usarAleatorio) {
+                    await this.plugin.generarTarjetaQSL(created, qslData);
+                  } else {
+                    new FondoQSLModal(this.app, this.plugin, (fondo) => {
+                      void this.plugin.generarTarjetaQSL(created, qslData, fondo);
+                    }).open();
+                  }
+                })();
+              }).open();
+            }
           }
+        } catch (e) {
+          new import_obsidian.Notice("Error al guardar: " + (e instanceof Error ? e.message : String(e)));
         }
-      } catch (e) {
-        new import_obsidian.Notice("Error al guardar: " + (e instanceof Error ? e.message : String(e)));
-      }
+      })();
     });
   }
   async renderHeaderImage(container) {
@@ -1027,7 +1032,6 @@ ${comentario}
       return;
     const headerFile = files[0];
     try {
-      const img = await this.plugin.loadImage(headerFile.path);
       const headerDiv = container.createDiv({ cls: "logger-header-image" });
       const headerImg = headerDiv.createEl("img", {
         cls: "logger-header-img"
@@ -1042,18 +1046,23 @@ ${comentario}
         }
       };
       headerDiv.addEventListener("click", () => {
-        new FondoQSLModal(this.app, this.plugin, async (nuevaRuta) => {
-          if (nuevaRuta) {
-            headerImg.src = this.app.vault.getResourcePath(this.app.vault.getAbstractFileByPath(nuevaRuta));
-            const newImg = await this.plugin.loadImage(nuevaRuta);
-            const aspectRatio = newImg.naturalWidth / newImg.naturalHeight;
-            headerDiv.classList.remove("logger-header--wide", "logger-header--narrow");
-            if (aspectRatio >= 1.5) {
-              headerDiv.addClass("logger-header--wide");
-            } else {
-              headerDiv.addClass("logger-header--narrow");
+        new FondoQSLModal(this.app, this.plugin, (nuevaRuta) => {
+          void (async () => {
+            if (nuevaRuta) {
+              const file = this.app.vault.getAbstractFileByPath(nuevaRuta);
+              if (file instanceof import_obsidian.TFile) {
+                headerImg.src = this.app.vault.getResourcePath(file);
+                const newImg = await this.plugin.loadImage(nuevaRuta);
+                const aspectRatio = newImg.naturalWidth / newImg.naturalHeight;
+                headerDiv.classList.remove("logger-header--wide", "logger-header--narrow");
+                if (aspectRatio >= 1.5) {
+                  headerDiv.addClass("logger-header--wide");
+                } else {
+                  headerDiv.addClass("logger-header--narrow");
+                }
+              }
             }
-          }
+          })();
         }).open();
       });
       headerDiv.createEl("span", { text: "Clic para cambiar", cls: "logger-header-hint" });
@@ -1149,7 +1158,7 @@ var QSLFondoModal = class extends import_obsidian.FuzzySuggestModal {
   getItemText(item) {
     return item === "usar-aleatorio" ? "\u{1F3B2} Usar fondo aleatorio" : "\u{1F5BC}\uFE0F Elegir fondo espec\xEDfico";
   }
-  async onChooseItem(item) {
+  onChooseItem(item) {
     this.onPick(item === "usar-aleatorio");
   }
 };
@@ -1172,11 +1181,13 @@ var FondoQSLModal = class extends import_obsidian.FuzzySuggestModal {
   getItemText(item) {
     return item === OPCION_SUBIR ? "\u{1F4C1} Subir imagen del equipo\u2026" : item;
   }
-  async onChooseItem(item) {
+  onChooseItem(item) {
     if (item === OPCION_SUBIR) {
-      const ruta = await this.plugin.subirImagenEquipo();
-      if (ruta)
-        this.onPick(ruta);
+      void (async () => {
+        const ruta = await this.plugin.subirImagenEquipo();
+        if (ruta)
+          this.onPick(ruta);
+      })();
       return;
     }
     this.onPick(item);
@@ -1190,7 +1201,7 @@ var BitacoraSettingsTab = class extends import_obsidian.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "Bit\xE1cora de radioaficionado" });
+    new import_obsidian.Setting(containerEl).setName("Bit\xE1cora de radioaficionado").setHeading();
     new import_obsidian.Setting(containerEl).setName("Licencia").setDesc("Distintiva propia. Se usa en el t\xEDtulo, en el ADIF y en la primera fila del formulario.").addText(
       (text) => text.setPlaceholder("LU9EFF").setValue(this.plugin.settings.licencia).onChange(async (value) => {
         this.plugin.settings.licencia = value;

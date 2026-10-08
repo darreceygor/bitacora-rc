@@ -181,8 +181,8 @@ select.logger-input {
 	cursor: pointer;
 }
 
-.qso-tabla-fila:hover {
-	background: var(--background-modifier-hover) !important;
+.qso-tabla tbody tr.qso-tabla-fila:hover {
+	background: var(--background-modifier-hover);
 }
 
 .qso-tabla .qsi {
