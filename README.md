@@ -1,4 +1,4 @@
-# Bitácora de Radioaficionado
+# Bitacora de radioaficionado
 
 Plugin para Obsidian que permite llevar una bitácora de contactos (QSOs) y generar tarjetas QSL automáticamente.
 
