@@ -362,23 +362,23 @@ export default class LoggerPlugin extends Plugin {
 
 		for (const file of archivos) {
 			const fm: Record<string, unknown> = this.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
-			const lic = this.normalizarLicencia((fm.corresponsal as string) ?? "");
-			const fix = lic && !this.pareceLicencia(lic) && this.pareceLicencia(fm.nombre as string)
+			const lic = this.normalizarLicencia(fm.corresponsal ?? "");
+			const fix = lic && !this.pareceLicencia(lic) && this.pareceLicencia(fm.nombre)
 				? this.corregirLicenciaYNombre(fm.corresponsal, fm.nombre)
-				: { licencia: lic, nombre: this.normalizarNombre((fm.nombre as string) ?? ""), corregido: false };
+				: { licencia: lic, nombre: this.normalizarNombre(fm.nombre ?? ""), corregido: false };
 
 			filas.push({
 				file,
 				licencia: fix.licencia,
 				nombre: fix.nombre,
-				fecha: ((fm.fecha as string) ?? "").toString(),
-				hora: ((fm.hora_utc as string) ?? (fm.hora as string) ?? "").toString(),
-				banda: ((fm.banda as string) ?? "").toString(),
-				modo: ((fm.modo as string) ?? "").toString(),
-				propagacion: ((fm.propagacion as string) ?? "").toString(),
-				rst: ((fm.rst as string) ?? "").toString(),
-				operador: this.normalizarNombre((fm.operador as string) ?? ""),
-				grid: ((fm.grid as string) ?? "").toString().toUpperCase(),
+				fecha: (fm.fecha ?? "").toString(),
+				hora: (fm.hora_utc ?? fm.hora ?? "").toString(),
+				banda: (fm.banda ?? "").toString(),
+				modo: (fm.modo ?? "").toString(),
+				propagacion: (fm.propagacion ?? "").toString(),
+				rst: (fm.rst ?? "").toString(),
+				operador: this.normalizarNombre(fm.operador ?? ""),
+				grid: (fm.grid ?? "").toString().toUpperCase(),
 				comentario: this.normalizarNombre((fm.comentario as string) ?? ""),
 				qslEnviada: Boolean(fm.qsl_enviada),
 				qslRecibida: Boolean(fm.url),
@@ -441,7 +441,7 @@ export default class LoggerPlugin extends Plugin {
 			["escudo.jpg", LOGO_PATH, LOGO_B64],
 		];
 
-		for (const [_name, dest, b64] of assets) {
+		for (const [, dest, b64] of assets) {
 			if (this.app.vault.getAbstractFileByPath(dest)) continue;
 			try {
 				const binary = this.base64ToBinary(b64);
@@ -595,14 +595,14 @@ export default class LoggerPlugin extends Plugin {
 			const cache = this.app.metadataCache.getFileCache(file);
 			const fm: Record<string, unknown> = data ?? cache?.frontmatter ?? {};
 
-			const emisor = (fm.emisor as string) ?? (fm.mi_call as string) ?? this.licencia();
-			const corresponsal = this.normalizarLicencia((fm.corresponsal as string) ?? "");
-			const fecha = (fm.fecha as string) ?? "";
-			const hora = (fm.hora_utc as string) ?? (fm.hora as string) ?? "";
-			const banda = (fm.banda as string) ?? "";
-			const modo = (fm.modo as string) ?? "";
-			const rst = (fm.rst as string) ?? (fm.rst_s as string) ?? "";
-			const comentario = (fm.comentario as string) ?? "Gracias por el contacto! 73!";
+			const emisor = fm.emisor ?? fm.mi_call ?? this.licencia();
+			const corresponsal = this.normalizarLicencia(fm.corresponsal ?? "");
+			const fecha = fm.fecha ?? "";
+			const hora = fm.hora_utc ?? fm.hora ?? "";
+			const banda = fm.banda ?? "";
+			const modo = fm.modo ?? "";
+			const rst = fm.rst ?? fm.rst_s ?? "";
+			const comentario = fm.comentario ?? "Gracias por el contacto! 73!";
 
 			const line1 = `${emisor} → ${corresponsal} · ${fecha} ${hora} UTC`;
 			const line2 = `${banda} · ${modo} · RST ${rst} · ${comentario}`;
@@ -712,23 +712,23 @@ export default class LoggerPlugin extends Plugin {
 
 			for (const f of files) {
 				const fm: Record<string, unknown> = this.app.metadataCache.getFileCache(f)?.frontmatter ?? {};
-				const fix = this.corregirLicenciaYNombre((fm.corresponsal as string) ?? "", (fm.nombre as string) ?? "");
+				const fix = this.corregirLicenciaYNombre(fm.corresponsal ?? "", fm.nombre ?? "");
 				const call = fix.licencia;
 				if (!call) continue;
 
-			const emisor = ((fm.emisor as string) ?? (fm.mi_call as string) ?? this.licencia()).toString().trim().toUpperCase();
+			const emisor = (fm.emisor ?? fm.mi_call ?? this.licencia()).toString().trim().toUpperCase();
 			const nombre = fix.nombre;
-			const operador = ((fm.operador as string) ?? this.settings.operador ?? "").toString().trim();
-			const ituZone = ((fm.itu_zone as string) ?? this.settings.ituZone ?? "").toString().trim();
-			const cqZone = ((fm.cq_zone as string) ?? this.settings.cqZone ?? "").toString().trim();
-			const grid = ((fm.grid as string) ?? this.settings.grid ?? "").toString().trim().toUpperCase();
-				const fecha = ((fm.fecha as string) ?? "").toString().trim().replace(/-/g, "");
-				const hora = ((fm.hora_utc as string) ?? (fm.hora as string) ?? "").toString().trim().replace(":", "");
-				const banda = ((fm.banda as string) ?? "").toString().trim().toUpperCase();
-				let modo = ((fm.modo as string) ?? "").toString().trim().toUpperCase();
+			const operador = (fm.operador ?? this.settings.operador ?? "").toString().trim();
+			const ituZone = (fm.itu_zone ?? this.settings.ituZone ?? "").toString().trim();
+			const cqZone = (fm.cq_zone ?? this.settings.cqZone ?? "").toString().trim();
+			const grid = (fm.grid ?? this.settings.grid ?? "").toString().trim().toUpperCase();
+				const fecha = (fm.fecha ?? "").toString().trim().replace(/-/g, "");
+				const hora = (fm.hora_utc ?? fm.hora ?? "").toString().trim().replace(":", "");
+				const banda = (fm.banda ?? "").toString().trim().toUpperCase();
+				let modo = (fm.modo ?? "").toString().trim().toUpperCase();
 				if (modo === "ECHOLINK") modo = "DV";
-				const rstSent = ((fm.rst as string) ?? (fm.rst_s as string) ?? "").toString().trim();
-				const rstRcvd = ((fm.rst as string) ?? (fm.rst_r as string) ?? rstSent).toString().trim();
+				const rstSent = (fm.rst ?? fm.rst_s ?? "").toString().trim();
+				const rstRcvd = (fm.rst ?? fm.rst_r ?? rstSent).toString().trim();
 				const prop = ((fm.propagacion as string) ?? "").toString().trim().toUpperCase();
 				const comentario = ((fm.comentario as string) ?? "").toString().trim();
 

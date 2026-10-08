@@ -381,7 +381,7 @@ var LoggerPlugin = class extends import_obsidian.Plugin {
       ["qsl_background.jpg", BG_PATH, BG_B64],
       ["escudo.jpg", LOGO_PATH, LOGO_B64]
     ];
-    for (const [_name, dest, b64] of assets) {
+    for (const [, dest, b64] of assets) {
       if (this.app.vault.getAbstractFileByPath(dest))
         continue;
       try {
