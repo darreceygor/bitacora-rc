@@ -12,7 +12,7 @@ Plugin para Obsidian que permite llevar una bitácora de contactos (QSOs) y gene
 - **Exportación a ADIF** estándar
 - **Normalización automática** de licencias y nombres
 
-## Instalación
+## Instalación (Installation)
 
 ### Desde la comunidad (recomendado)
 1. `Configuración → Plugins comunitarios → Explorar`
@@ -20,11 +20,19 @@ Plugin para Obsidian que permite llevar una bitácora de contactos (QSOs) y gene
 3. Instalar y activar
 
 ### Manual
-1. Copiar la carpeta `bitacora_rc` a `.obsidian/plugins/`
-2. Recargar Obsidian (`Ctrl+R`)
-3. Activar en `Configuración → Plugins comunitarios`
+1. Descargar `main.js`, `manifest.json` y `styles.css` desde la última [release](../../releases/latest)
+2. Crear la carpeta `<tu vault>/.obsidian/plugins/bitacora-rc/` y copiar ahí los tres archivos
+3. Recargar Obsidian (`Ctrl+R`)
+4. Activar en `Configuración → Plugins comunitarios`
 
-## Uso
+### Compilar desde el código fuente
+```bash
+npm install
+npm run build
+```
+Luego copiar `main.js`, `manifest.json` y `styles.css` a `.obsidian/plugins/bitacora-rc/`.
+
+## Uso (Usage)
 
 ### Primeros pasos
 1. Abrir el panel lateral (icono de radio 📻)
