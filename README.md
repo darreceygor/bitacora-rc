@@ -1,4 +1,4 @@
-# Bitácora de Radioaficionado (bitacora_rc)
+# Bitácora de Radioaficionado
 
 Plugin para Obsidian que permite llevar una bitácora de contactos (QSOs) y generar tarjetas QSL automáticamente.
 
